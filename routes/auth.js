@@ -55,21 +55,4 @@ router.post("/login", async (req, res) => {
   }
 })
 
-router.get("/me", auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select("-password")
-    if (!user) {
-      return res.status(400).json({ message: "User profile not found." })
-    }
-    res.status(200)
-    res.json({
-      success: true,
-      message: "user fetched successfully",
-      respondedData: user,
-    })
-  } catch (error) {
-    res.status(500).json({ message: error.message })
-  }
-})
-
 module.exports = router

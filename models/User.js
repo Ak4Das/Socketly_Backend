@@ -27,6 +27,6 @@ UserSchema.methods.comparePassword = async function (password) {
   return bcrypt.compare(password, this.password) // this.password is the hashed password stored in the database
 }
 
-const User = mongoose.model("user", UserSchema)
+const User = mongoose.model("User", UserSchema)
 
 module.exports = User
