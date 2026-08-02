@@ -1,24 +1,30 @@
 const mongoose = require("mongoose")
 const bcrypt = require("bcrypt")
 
-const UserSchema = new mongoose.Schema({
-  username: {
-    type: String,
-    required: true,
-    unique: true,
+const UserSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      trim: true,
+      required: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      lowercase: true,
+    },
+    password: {
+      type: String,
+      require: true,
+    },
   },
-  password: {
-    type: String,
-    require: true,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-})
+  { timestamps: true },
+)
 
 UserSchema.methods.comparePassword = async function (password) {
-  return bcrypt.compare(password, this.password)
+  return bcrypt.compare(password, this.password) // this.password is the hashed password stored in the database
 }
 
 const User = mongoose.model("user", UserSchema)
