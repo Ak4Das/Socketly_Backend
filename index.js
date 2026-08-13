@@ -1,70 +1,55 @@
 const express = require("express")
+const bodyParser = require("body-parser")
+const connectDB = require("./config/dbConfig")
 const cors = require("cors")
-const dotenv = require("dotenv")
-dotenv.config()
-
-const authRoutes = require("./routes/auth.js")
-const messagesRoutes = require("./routes/messages.js")
-const userRoutes = require("./routes/user.js")
-
-const { Server } = require("socket.io")
+const cookieParser = require("cookie-parser")
 const http = require("http")
+const initializeSocket = require("./src/services/socketIoService")
+require("dotenv").config()
 
-const Messages = require("./models/Messages.js")
+// Connect to Database
+connectDB()
 
-const connectDatabase = require("./db/db.connect.js")
-
-// Connect with DB
-connectDatabase()
-
-// Create Server
+// Create Express server
 const app = express()
-app.use(
-  cors({
-    origin: "*",
-    credentials: true,
-    optionSuccessStatus: 200,
-  }),
-)
+
+// Middlewares
 app.use(express.json())
+app.use(cookieParser())
+app.use(bodyParser.urlencoded({ extended: true })) // used to parse data sent from the client in URL-encoded format and make that data available in req.body
+
+// Configure CORS
+const corsOptions = {
+  origin: process.env.FRONTEND_URL,
+  credentials: true,
+}
+app.use(cors(corsOptions))
 
 // Socket.IO needs direct access to the HTTP server
 // creates an HTTP server object
 // Builds the server and configures it to use your Express app for handling HTTP requests.
 const server = http.createServer(app) // Express routes and Socket.IO share the same server.
 
-// Attaches Socket.IO to the HTTP server (app).
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:3000", // to establish a socket connection with frontend
-  },
+const io = initializeSocket(server)
+
+// Apply socket middleware BEFORE routes
+app.use((req, res, next) => {
+  req.io = io
+  req.socketUserMap = io.socketUserMap // This is the key missing piece!
+  next()
 })
 
-// Waiting for client connections Whenever a client connect the server fires connection event and creates a new socket object
-io.on("connection", (socket) => {
-  console.log("User Connected", socket.id)
+// Routes
+const userRoutes = require("./src/routes/userRoute")
+const chatRoutes = require("./src/routes/chatRoutes")
+const statusRoute = require("./src/routes/statusRoute")
 
-  // Listening for messages
-  socket.on("send_message", async (data) => {
-    const { sender, receiver, message } = data
-    const newMessage = new Messages({ sender, receiver, message })
-    await newMessage.save()
+app.use("/api/users", userRoutes)
+app.use("/api/chats", chatRoutes)
+app.use("/api/status", statusRoute)
 
-    // Send the event to every connected client except the sender.
-    socket.broadcast.emit("receive_message", data)
-  })
-
-  // Whenever a user closes the tab, loses internet, or disconnects, this event fires.
-  socket.on("disconnect", () => {
-    console.log("User disconnected", socket.id)
-  })
+// Start Server
+const PORT = process.env.PORT || 5000
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
 })
-
-// ROUTES
-app.use("/auth", authRoutes)
-app.use("/messages", messagesRoutes)
-app.use("/user", userRoutes)
-
-const PORT = process.env.PORT || 5001
-
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`))
