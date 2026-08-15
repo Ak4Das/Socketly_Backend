@@ -1,7 +1,7 @@
 const { Server } = require("socket.io")
 const User = require("../../models/User")
 const Message = require("../../models/Message")
-const socketAuthMiddleware = require("../middlerwares/socketAuthMiddleware")
+const socketAuthMiddleware = require("../middlewares/socketAuthMiddleware")
 
 // Map to store online users: userId -> socketId
 const onlineUsers = new Map()
@@ -22,7 +22,7 @@ const initializeSocket = (server) => {
     pingTimeout: 60000, // Server sends ping then Client must respond with pong if No pong for 60 seconds then Socket.IO disconnects the socket
   })
 
-  //middleware
+  // Middleware to verify JWT token while user want to establish socket.io connection, if token valid then connection allowed otherwise not
   io.use(socketAuthMiddleware)
 
   // Waiting for client connections Whenever a client connect the server fires connection event and creates a new socket object
@@ -73,28 +73,6 @@ const initializeSocket = (server) => {
       }
     })
 
-    // Update messages as read and notify sender
-    socket.on("message_read", async ({ messageIds, senderId }) => {
-      try {
-        await Message.updateMany(
-          { _id: { $in: messageIds } },
-          { $set: { messageStatus: "read" } },
-        )
-
-        const senderSocketId = onlineUsers.get(senderId)
-        if (senderSocketId) {
-          messageIds.forEach((messageId) => {
-            io.to(senderSocketId).emit("message_status_update", {
-              messageId,
-              messageStatus: "read",
-            })
-          })
-        }
-      } catch (error) {
-        console.error("Error updating message read status:", error)
-      }
-    })
-
     // Handle typing start event and auto-stop after 3s
     socket.on("typing_start", ({ conversationId, receiverId }) => {
       if (!userId || !conversationId || !receiverId) return
@@ -103,6 +81,13 @@ const initializeSocket = (server) => {
       const userTyping = typingUsers.get(userId)
 
       userTyping[conversationId] = true
+
+      // Notify receiver
+      socket.to(receiverId).emit("user_typing", {
+        userId,
+        conversationId,
+        isTyping: true,
+      })
 
       // Clear any existing timeout
       if (userTyping[`${conversationId}_timeout`]) {
@@ -118,36 +103,7 @@ const initializeSocket = (server) => {
           isTyping: false,
         })
       }, 3000)
-
-      // Notify receiver
-      socket.to(receiverId).emit("user_typing", {
-        userId,
-        conversationId,
-        isTyping: true,
-      })
     })
-
-    // Handle manual typing stop event
-    socket.on("typing_stop", ({ conversationId, receiverId }) => {
-      if (!userId || !conversationId || !receiverId) return
-
-      if (typingUsers.has(userId)) {
-        const userTyping = typingUsers.get(userId)
-        userTyping[conversationId] = false
-
-        if (userTyping[`${conversationId}_timeout`]) {
-          clearTimeout(userTyping[`${conversationId}_timeout`])
-          delete userTyping[`${conversationId}_timeout`]
-        }
-      }
-
-      socket.to(receiverId).emit("user_typing", {
-        userId,
-        conversationId,
-        isTyping: false,
-      })
-    })
-
     // Add or update reaction on a message
     socket.on(
       "add_reaction",
