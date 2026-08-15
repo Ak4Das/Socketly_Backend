@@ -32,7 +32,7 @@ const register = async (req, res) => {
 
     return response(res, 200, "User registered successfully", user)
   } catch (error) {
-    return response(res, 500, "Server Error")
+    return response(res, 500, error.message)
   }
 }
 
@@ -54,7 +54,7 @@ const sendOtp = async (req, res) => {
         return response(res, 400, "Password is required.")
       }
 
-      const isVerified = bcrypt.compare(password, user.password)
+      const isVerified = await bcrypt.compare(password, user.password)
 
       if (!isVerified) {
         return response(res, 400, "Invalid password.")
@@ -179,16 +179,6 @@ const checkAuthenticated = async (req, res) => {
   }
 }
 
-const logout = (req, res) => {
-  try {
-    res.cookie("auth_token", "", { expires: new Date(0) })
-    return response(res, 200, "User logged out successfully")
-  } catch (error) {
-    console.error(error)
-    return response(res, 500, "Internal Server Error", error.message)
-  }
-}
-
 const getAllUsers = async (req, res) => {
   const loggedInUserId = req.user.id
   try {
@@ -224,6 +214,25 @@ const getAllUsers = async (req, res) => {
   }
 }
 
+const deleteUserById = async (req, res) => {
+  const { id, password } = req.query
+  try {
+    const user = await User.findById(id)
+    if (user) {
+      if (user.password === password) {
+        await User.findByIdAndDelete(id)
+        response(res, 200, "User deleted successfully", user)
+      } else {
+        response(res, 400, "Operation unsuccessful")
+      }
+    } else {
+      response(res, 400, "User not found")
+    }
+  } catch (error) {
+    response(res, 500, error.message)
+  }
+}
+
 module.exports = {
   register,
   sendOtp,
@@ -231,5 +240,5 @@ module.exports = {
   updateProfile,
   checkAuthenticated,
   getAllUsers,
-  logout,
+  deleteUserById,
 }
