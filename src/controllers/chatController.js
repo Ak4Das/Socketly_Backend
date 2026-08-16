@@ -168,13 +168,12 @@ exports.markAsRead = async (req, res) => {
   try {
     // Get relevant messages to determine senders
     let messages = await Message.find({
-      _id: { $in: messageIds },
-      receiver: userId,
+      _id: { $in: messageIds }
     })
 
     // Update messageStatus to "read"
     await Message.updateMany(
-      { _id: { $in: messageIds }, receiver: userId },
+      { _id: { $in: messageIds } },
       { $set: { messageStatus: "read" } },
     )
 
@@ -188,7 +187,6 @@ exports.markAsRead = async (req, res) => {
             messageStatus: "read",
           }
           req.io.to(senderSocketId).emit("message_read", updatedMessage)
-          await message.save() // Optional: update each message
         }
       }
     }
